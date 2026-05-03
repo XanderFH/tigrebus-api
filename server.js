@@ -25,8 +25,8 @@ const config = {
 };
 
 sql.connect(config)
-  .then(() => console.log(" Conectado a SQL Server"))
-  .catch(err => console.log(" Error conexión:", err));
+  .then(() => console.log("Conectado a SQL Server"))
+  .catch(err => console.log("Error conexión:", err));
 
 app.get("/", (req, res) => {
   res.send("API funcionando");
@@ -264,9 +264,7 @@ app.get('/admin/resumen', async (req, res) => {
 
   try {
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
       SELECT 
         (SELECT COUNT(*) FROM dbo.Users) AS usuarios,
         (SELECT COUNT(*) FROM dbo.Units WHERE Estado = 1) AS unidades_activas,
@@ -287,10 +285,7 @@ app.get('/admin/resumen', async (req, res) => {
 app.get('/admin/usuarios', async (req, res) => {
 
   try {
-
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
       SELECT 
         Id AS id,
         Nombre AS nombre,
@@ -317,9 +312,7 @@ app.put("/admin/usuarios/:id", async (req, res) => {
     const { estado, id_rol } = req.body;
     const { id } = req.params;
 
-    const pool = await sql.connect(config);
-
-    await pool.request()
+    await sql.request()
       .input("id", sql.Int, id)
       .input("estado", sql.Int, estado)
       .input("id_rol", sql.Int, id_rol)
@@ -344,9 +337,7 @@ app.put("/admin/usuarios/:id", async (req, res) => {
 
 app.get('/admin/unidades', async (req, res) => {
   try {
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
       SELECT 
         Id_Unidad,
         Numero_Unidad,
@@ -369,9 +360,7 @@ app.post('/admin/unidades', async (req, res) => {
   try {
     const { numero_unidad, placa, capacidad_asientos, id_chofer } = req.body;
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input("numeroUnidad", sql.Int, numero_unidad)
       .input("placa", sql.VarChar, placa)
       .input("capacidad", sql.Int, capacidad_asientos)
@@ -395,7 +384,7 @@ app.post('/admin/unidades', async (req, res) => {
     const unidadId = result.recordset[0].Id_Unidad;
 
     for (let i = 1; i <= capacidad_asientos; i++) {
-      await pool.request()
+      await sql.request()
         .input("numero", sql.Int, i)
         .input("unidadId", sql.Int, unidadId)
         .query(`
@@ -424,10 +413,8 @@ app.put('/admin/unidades/:id', async (req, res) => {
 
     const { numero_unidad, placa, capacidad_asientos, estado, id_chofer } = req.body;
 
-    const pool = await sql.connect(config);
-
     if (id_chofer) {
-      const existe = await pool.request()
+      const existe = await sql.request()
         .input("id_chofer", sql.Int, id_chofer)
         .input("id_unidad", sql.Int, id)
         .query(`
@@ -444,7 +431,7 @@ app.put('/admin/unidades/:id', async (req, res) => {
       }
     }
 
-    await pool.request()
+    await sql.request()
       .input("id", sql.Int, id)
       .input("numero_unidad", sql.Int, numero_unidad ?? null)
       .input("placa", sql.VarChar, placa ?? null)
@@ -473,9 +460,7 @@ app.put('/admin/unidades/:id', async (req, res) => {
 app.get('/admin/rutas', async (req, res) => {
   try {
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
       SELECT 
         r.Id_Ruta,
         r.Nombre_Ruta,
@@ -512,10 +497,7 @@ app.get('/admin/rutas', async (req, res) => {
 app.get('/admin/unidades-disponibles', async (req, res) => {
 
   try {
-
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
       SELECT 
         Id_Unidad,
         Numero_Unidad
@@ -556,9 +538,7 @@ app.put('/admin/rutas/:id', async (req, res) => {
       Estado
     } = req.body;
 
-    const pool = await sql.connect(config);
-
-    await pool.request()
+    await sql.request()
 
       .input("id", sql.Int, id)
       .input("Nombre_Ruta", sql.VarChar, Nombre_Ruta)
@@ -616,9 +596,7 @@ app.post('/admin/rutas', async (req, res) => {
       unidad_id
     } = req.body;
 
-    const pool = await sql.connect(config);
-
-    await pool.request()
+    await sql.request()
       .input("nombre_ruta", sql.VarChar, nombre_ruta)
       .input("descripcion", sql.VarChar, descripcion)
       .input("origen_nombre", sql.VarChar, origen_nombre)
@@ -680,9 +658,7 @@ app.put('/admin/rutas/estado/:id', async (req, res) => {
     const { id } = req.params;
     const { estado } = req.body;
 
-    const pool = await sql.connect(config);
-
-    await pool.request()
+    await sql.request()
       .input("id", sql.Int, id)
       .input("estado", sql.Int, estado)
       .query(`
@@ -713,9 +689,7 @@ app.delete('/admin/rutas/:id', async (req, res) => {
 
     const { id } = req.params;
 
-    const pool = await sql.connect(config);
-
-    await pool.request()
+    await sql.request()
       .input("id", sql.Int, id)
       .query(`
         DELETE FROM dbo.Rutas
@@ -742,9 +716,7 @@ app.get('/usuario/rutas-activas', async (req, res) => {
 
   try {
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
 
       SELECT
         r.Id_Ruta,
@@ -784,8 +756,7 @@ app.get('/usuario/asientos/:rutaId', async (req, res) => {
 
     const rutaId = req.params.rutaId;
 
-    const pool = await sql.connect(config);
-    const unidadResult = await pool.request()
+    const unidadResult = await sql.request()
       .input("RutaId", sql.Int, rutaId)
       .query(`
         SELECT Unidad_Id
@@ -793,7 +764,7 @@ app.get('/usuario/asientos/:rutaId', async (req, res) => {
         WHERE Id_Ruta = @RutaId
       `);
     const unidadId = unidadResult.recordset[0].Unidad_Id;
-    const asientosResult = await pool.request()
+    const asientosResult = await sql.request()
       .input("UnidadId", sql.Int, unidadId)
       .query(`
         SELECT 
@@ -823,9 +794,7 @@ app.put('/usuario/reservar-asiento/:id', async (req, res) => {
     const idAsiento = req.params.id;
     const rutaId = req.body.rutaId;
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input("Id", sql.Int, idAsiento)
       .input("RutaId", sql.Int, rutaId)
       .query(`
@@ -860,9 +829,7 @@ app.put('/usuario/cancelar-reserva/:id', async (req, res) => {
 
     const idAsiento = req.params.id;
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input("Id", sql.Int, idAsiento)
       .query(`
         UPDATE Asientos
@@ -892,9 +859,7 @@ app.put('/usuario/ocupar-asiento/:id', async (req, res) => {
     console.log("OCUPAR asiento:", idAsiento);
     console.log("Ruta:", rutaId);
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input("Id", sql.Int, idAsiento)
       .input("RutaId", sql.Int, rutaId)
       .query(`
@@ -927,9 +892,7 @@ app.get('/usuario/estado-asiento/:id', async (req, res) => {
 
     const idAsiento = req.params.id;
 
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input("Id", sql.Int, idAsiento)
       .query(`
         SELECT Estado
@@ -954,9 +917,7 @@ app.put("/chofer/asientos/:id", async (req, res) => {
     const { estado, id_chofer } = req.body;
     const id_asiento = parseInt(req.params.id);
 
-    const pool = await sql.connect(config);
-
-    const validacion = await pool.request()
+    const validacion = await sql.request()
       .input("id_chofer", sql.Int, id_chofer)
       .input("id_asiento", sql.Int, id_asiento)
       .query(`
@@ -975,7 +936,7 @@ app.put("/chofer/asientos/:id", async (req, res) => {
       });
     }
 
-    await pool.request()
+    await sql.request()
       .input("estado", sql.Int, estado)
       .input("id_asiento", sql.Int, id_asiento)
       .query(`
@@ -993,9 +954,7 @@ app.put("/chofer/asientos/:id", async (req, res) => {
 
 app.get('/admin/choferes', async (req, res) => {
   try {
-    const pool = await sql.connect(config);
-
-    const result = await pool.request().query(`
+    const result = await sql.query(`
       SELECT Id, Nombre, Apellido
       FROM dbo.Users
       WHERE Id_Rol = 3
@@ -1013,9 +972,7 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
   const { idChofer } = req.params;
 
   try {
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input('idChofer', sql.Int, idChofer)
       .query(`
         SELECT Id_Unidad
@@ -1057,9 +1014,7 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(config);
-
-    const result = await pool.request()
+    const result = await sql.request()
       .input('id_unidad', sql.Int, id_unidad)
       .query(`
         UPDATE Asientos
