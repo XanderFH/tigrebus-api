@@ -965,17 +965,30 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
   try {
     const pool = await getPool();
 
-    const { id_unidad } = req.body;
+    const { id_unidad, id_chofer } = req.body;
 
-    if (!id_unidad) {
-      return res.status(400).json({
+    console.log("Unidad:", id_unidad);
+    console.log("Chofer:", id_chofer);
+    
+    const validacion = await pool.request()
+      .input("id_unidad", sql.Int, id_unidad)
+      .input("id_chofer", sql.Int, id_chofer)
+      .query(`
+        SELECT Id_Unidad
+        FROM Units
+        WHERE Id_Unidad = @id_unidad
+        AND Id_Chofer = @id_chofer
+      `);
+
+    if (validacion.recordset.length === 0) {
+      return res.status(403).json({
         success: false,
-        message: "id_unidad es requerido"
+        message: "Esta unidad no pertenece al chofer"
       });
     }
 
     const result = await pool.request()
-      .input('id_unidad', sql.Int, id_unidad)
+      .input("id_unidad", sql.Int, id_unidad)
       .query(`
         UPDATE Asientos
         SET Estado = 0
@@ -983,10 +996,12 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
         AND Estado IN (1, 2)
       `);
 
+    console.log("FILAS AFECTADAS:", result.rowsAffected);
+
     if (result.rowsAffected[0] === 0) {
       return res.json({
         success: false,
-        message: "No había asientos para liberar"
+        message: "No se actualizó ningún asiento"
       });
     }
 
@@ -996,10 +1011,10 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
     });
 
   } catch (error) {
-    console.log("LIBERAR ASIENTOS ERROR:", error);
+    console.log("ERROR:", error);
     res.status(500).json({
       success: false,
-      message: "Error liberando asientos"
+      message: "Error en servidor"
     });
   }
 });
