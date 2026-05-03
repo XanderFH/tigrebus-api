@@ -863,7 +863,7 @@ app.get('/usuario/estado-asiento/:id', async (req, res) => {
   }
 });
 
-app.put("/chofer/asientos/:id", async (req, res) => {
+app.put("/chofer/asientos/:id(\\d+)", async (req, res) => {
   try {
      console.log("🚨 ENTRE A ASIENTO POR ID");
   console.log("PARAM ID:", req.params.id);
