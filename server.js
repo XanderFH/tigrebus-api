@@ -867,12 +867,12 @@ app.put("/chofer/asientos/:id", async (req, res) => {
   try {
     const pool = await getPool();
 
-    const { estado, id_chofer } = req.body;
+    const { estado, id_chofer, id_unidad } = req.body;
     const id_asiento = parseInt(req.params.id);
 
-    // Validar que el asiento pertenece al chofer
     const validacion = await pool.request()
       .input("id_chofer", sql.Int, id_chofer)
+      .input("id_unidad", sql.Int, id_unidad)
       .input("id_asiento", sql.Int, id_asiento)
       .query(`
         SELECT a.Id_Asiento
@@ -880,7 +880,8 @@ app.put("/chofer/asientos/:id", async (req, res) => {
         INNER JOIN Units u 
           ON a.Id_Unidad = u.Id_Unidad
         WHERE u.Id_Chofer = @id_chofer
-        AND a.Id_Asiento = @id_asiento
+          AND u.Id_Unidad = @id_unidad
+          AND a.Id_Asiento = @id_asiento
       `);
 
     if (validacion.recordset.length === 0) {
@@ -890,7 +891,6 @@ app.put("/chofer/asientos/:id", async (req, res) => {
       });
     }
 
-    // Actualizar estado
     await pool.request()
       .input("estado", sql.Int, estado)
       .input("id_asiento", sql.Int, id_asiento)
