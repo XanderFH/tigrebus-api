@@ -1024,6 +1024,53 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
   }
 });
 
+app.post("/chofer/ubicacion", async (req, res) => {
+  try {
+    const pool = await getPool();
+
+    const { id_chofer, lat, lng } = req.body;
+
+    await pool.request()
+      .input("id_chofer", sql.Int, id_chofer)
+      .input("lat", sql.Float, lat)
+      .input("lng", sql.Float, lng)
+      .query(`
+        UPDATE Units
+        SET Latitud = @lat,
+            Longitud = @lng
+        WHERE Id_Chofer = @id_chofer
+      `);
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Error actualizando ubicación" });
+  }
+});
+
+app.get("/usuario/ubicacion-unidad/:rutaId", async (req, res) => {
+  try {
+    const pool = await getPool();
+    const { rutaId } = req.params;
+
+    const result = await pool.request()
+      .input("rutaId", sql.Int, rutaId)
+      .query(`
+        SELECT u.Latitud, u.Longitud
+        FROM Rutas r
+        INNER JOIN Units u
+          ON r.Unidad_Id = u.Id_Unidad
+        WHERE r.Id_Ruta = @rutaId
+      `);
+
+    res.json(result.recordset[0]);
+
+  } catch (error) {
+    res.status(500).json({ error: "Error obteniendo ubicación" });
+  }
+});
+
 
 const PORT = process.env.PORT || 3000;
 
