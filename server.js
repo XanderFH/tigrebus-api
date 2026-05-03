@@ -1071,6 +1071,33 @@ app.get("/usuario/ubicacion-unidad/:rutaId", async (req, res) => {
   }
 });
 
+app.get('/usuario/rutas', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const { busqueda } = req.query;
+
+    const result = await pool.request()
+      .input("busqueda", sql.VarChar, `%${busqueda}%`)
+      .query(`
+        SELECT
+          Id_Ruta,
+          Origen_Nombre,
+          Destino_Nombre
+        FROM Rutas
+        WHERE Estado = 1
+        AND (
+          Origen_Nombre LIKE @busqueda
+          OR Destino_Nombre LIKE @busqueda
+        )
+      `);
+
+    res.json(result.recordset);
+
+  } catch (error) {
+    console.log("BUSCAR RUTAS ERROR:", error);
+    res.status(500).json({ error: "Error en servidor" });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 
