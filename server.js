@@ -865,6 +865,9 @@ app.get('/usuario/estado-asiento/:id', async (req, res) => {
 
 app.put("/chofer/asientos/:id", async (req, res) => {
   try {
+     console.log("🚨 ENTRE A ASIENTO POR ID");
+  console.log("PARAM ID:", req.params.id);
+  console.log("BODY:", req.body);
     const pool = await getPool();
 
     const { estado, id_chofer, id_unidad } = req.body;
@@ -963,6 +966,8 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
 
 app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
   try {
+    console.log("🔥 ENTRE A LIBERAR ASIENTOS");
+    console.log("BODY:", req.body);
     const pool = await getPool();
 
     const { id_unidad, id_chofer } = req.body;
