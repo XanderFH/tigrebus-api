@@ -961,7 +961,7 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
   }
 });
 
-app.put('/chofer/asientos/liberar', async (req, res) => {
+app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
   try {
     const pool = await getPool();
 
@@ -969,7 +969,7 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
 
     console.log("Unidad:", id_unidad);
     console.log("Chofer:", id_chofer);
-    
+
     const validacion = await pool.request()
       .input("id_unidad", sql.Int, id_unidad)
       .input("id_chofer", sql.Int, id_chofer)
