@@ -863,7 +863,67 @@ app.get('/usuario/estado-asiento/:id', async (req, res) => {
   }
 });
 
-app.put("/chofer/asientos/:id(\\d+)", async (req, res) => {
+app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
+  try {
+    console.log("🔥 ENTRE A LIBERAR ASIENTOS");
+    console.log("BODY:", req.body);
+    const pool = await getPool();
+
+    const { id_unidad, id_chofer } = req.body;
+
+    console.log("Unidad:", id_unidad);
+    console.log("Chofer:", id_chofer);
+
+    const validacion = await pool.request()
+      .input("id_unidad", sql.Int, id_unidad)
+      .input("id_chofer", sql.Int, id_chofer)
+      .query(`
+        SELECT Id_Unidad
+        FROM Units
+        WHERE Id_Unidad = @id_unidad
+        AND Id_Chofer = @id_chofer
+      `);
+
+    if (validacion.recordset.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: "Esta unidad no pertenece al chofer"
+      });
+    }
+
+    const result = await pool.request()
+      .input("id_unidad", sql.Int, id_unidad)
+      .query(`
+        UPDATE Asientos
+        SET Estado = 0
+        WHERE Id_Unidad = @id_unidad
+        AND Estado IN (1, 2)
+      `);
+
+    console.log("FILAS AFECTADAS:", result.rowsAffected);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.json({
+        success: false,
+        message: "No se actualizó ningún asiento"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Asientos liberados correctamente"
+    });
+
+  } catch (error) {
+    console.log("ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error en servidor"
+    });
+  }
+});
+
+app.put("/chofer/asientos/:id", async (req, res) => {
   try {
      console.log("🚨 ENTRE A ASIENTO POR ID");
   console.log("PARAM ID:", req.params.id);
@@ -964,65 +1024,6 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
   }
 });
 
-app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
-  try {
-    console.log("🔥 ENTRE A LIBERAR ASIENTOS");
-    console.log("BODY:", req.body);
-    const pool = await getPool();
-
-    const { id_unidad, id_chofer } = req.body;
-
-    console.log("Unidad:", id_unidad);
-    console.log("Chofer:", id_chofer);
-
-    const validacion = await pool.request()
-      .input("id_unidad", sql.Int, id_unidad)
-      .input("id_chofer", sql.Int, id_chofer)
-      .query(`
-        SELECT Id_Unidad
-        FROM Units
-        WHERE Id_Unidad = @id_unidad
-        AND Id_Chofer = @id_chofer
-      `);
-
-    if (validacion.recordset.length === 0) {
-      return res.status(403).json({
-        success: false,
-        message: "Esta unidad no pertenece al chofer"
-      });
-    }
-
-    const result = await pool.request()
-      .input("id_unidad", sql.Int, id_unidad)
-      .query(`
-        UPDATE Asientos
-        SET Estado = 0
-        WHERE Id_Unidad = @id_unidad
-        AND Estado IN (1, 2)
-      `);
-
-    console.log("FILAS AFECTADAS:", result.rowsAffected);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.json({
-        success: false,
-        message: "No se actualizó ningún asiento"
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "Asientos liberados correctamente"
-    });
-
-  } catch (error) {
-    console.log("ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error en servidor"
-    });
-  }
-});
 
 const PORT = process.env.PORT || 3000;
 
