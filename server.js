@@ -24,6 +24,16 @@ const config = {
   }
 };
 
+let pool;
+
+async function getPool() {
+  if (!pool) {
+    pool = await sql.connect(config);
+    console.log("Conectado a SQL Server");
+  }
+  return pool;
+}
+
 sql.connect(config)
   .then(() => console.log("Conectado a SQL Server"))
   .catch(err => console.log("Error conexión:", err));
@@ -33,16 +43,20 @@ app.get("/", (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
-
   const { correo, password } = req.body;
 
-  try { 
-    const result = await sql.query`
-      SELECT u.*, r.Nombre_Rol
-      FROM dbo.Users u
-      JOIN dbo.Roles r ON u.Id_Rol = r.Id_Rol
-      WHERE u.Correo_Institucional = ${correo}
-    `;
+  try {
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input("correo", sql.VarChar, correo)
+      .query(`
+        SELECT u.*, r.Nombre_Rol
+        FROM dbo.Users u
+        JOIN dbo.Roles r ON u.Id_Rol = r.Id_Rol
+        WHERE u.Correo_Institucional = @correo
+      `);
+
     if (result.recordset.length === 0) {
       return res.json({
         success: false,
@@ -67,6 +81,7 @@ app.post("/api/login", async (req, res) => {
         message: "Credenciales incorrectas"
       });
     }
+
     const token = jwt.sign(
       { id: user.Id, correo: user.Correo_Institucional },
       process.env.JWT_SECRET || "CLAVE_SUPER_SECRETA",
@@ -75,7 +90,7 @@ app.post("/api/login", async (req, res) => {
 
     res.json({
       success: true,
-      token: token,
+      token,
       user: {
         id: user.Id,
         nombre: user.Nombre,
@@ -86,34 +101,43 @@ app.post("/api/login", async (req, res) => {
     });
 
   } catch (error) {
-    console.log(error);
+    console.log("LOGIN ERROR:", error);
     res.status(500).json({ error: "Error del servidor" });
   }
-
 });
 
 app.post("/api/register", async (req, res) => {
-
   const { nombre, apellido, correo, password } = req.body;
-  const existingUser = await sql.query`
-  SELECT * FROM dbo.Users
-  WHERE Correo_Institucional = ${correo}
-  `;
-
-  if (existingUser.recordset.length > 0) {
-    return res.json({
-      success: false,
-      message: "El correo ya está registrado"
-    });
-  }
 
   try {
+    const pool = await getPool();
+
+    const existingUser = await pool.request()
+      .input("correo", sql.VarChar, correo)
+      .query(`
+        SELECT * FROM dbo.Users
+        WHERE Correo_Institucional = @correo
+      `);
+
+    if (existingUser.recordset.length > 0) {
+      return res.json({
+        success: false,
+        message: "El correo ya está registrado"
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await sql.query`
-      INSERT INTO dbo.Users (Nombre, Apellido, Correo_Institucional, Password, Estado, Id_Rol)
-      VALUES (${nombre}, ${apellido}, ${correo}, ${hashedPassword}, ${1}, ${2})
-    `;
+    await pool.request()
+      .input("nombre", sql.VarChar, nombre)
+      .input("apellido", sql.VarChar, apellido)
+      .input("correo", sql.VarChar, correo)
+      .input("password", sql.VarChar, hashedPassword)
+      .query(`
+        INSERT INTO dbo.Users
+        (Nombre, Apellido, Correo_Institucional, Password, Estado, Id_Rol)
+        VALUES (@nombre, @apellido, @correo, @password, 1, 2)
+      `);
 
     res.json({
       success: true,
@@ -121,22 +145,23 @@ app.post("/api/register", async (req, res) => {
     });
 
   } catch (error) {
-    console.log(error);
+    console.log("REGISTER ERROR:", error);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
-
 });
 
 app.post("/api/forgot-password", async (req, res) => {
-
   const { correo } = req.body;
 
   try {
+    const pool = await getPool();
 
-    const result = await sql.query`
-      SELECT * FROM dbo.Users
-      WHERE Correo_Institucional = ${correo}
-    `;
+    const result = await pool.request()
+      .input("correo", sql.VarChar, correo)
+      .query(`
+        SELECT * FROM dbo.Users
+        WHERE Correo_Institucional = @correo
+      `);
 
     if (result.recordset.length === 0) {
       return res.json({
@@ -147,39 +172,44 @@ app.post("/api/forgot-password", async (req, res) => {
 
     const token = crypto.randomBytes(20).toString("hex");
 
-    await sql.query`
-      UPDATE dbo.Users
-      SET ResetToken = ${token},
+    await pool.request()
+      .input("token", sql.VarChar, token)
+      .input("correo", sql.VarChar, correo)
+      .query(`
+        UPDATE dbo.Users
+        SET 
+          ResetToken = @token,
           ResetTokenExpiration = DATEADD(MINUTE, 15, GETDATE())
-      WHERE Correo_Institucional = ${correo}
-    `;
+        WHERE Correo_Institucional = @correo
+      `);
 
-    console.log("TOKEN DE RECUPERACION:", token);
+    console.log("TOKEN:", token);
 
     res.json({
       success: true,
       message: "Token generado",
-      token: token
+      token
     });
 
   } catch (error) {
-    console.log(error);
+    console.log("FORGOT ERROR:", error);
     res.status(500).json({ error: "Error del servidor" });
   }
-
 });
 
 app.post("/api/reset-password", async (req, res) => {
-
   const { token, password } = req.body;
 
   try {
+    const pool = await getPool();
 
-    const result = await sql.query`
-      SELECT * FROM dbo.Users
-      WHERE ResetToken = ${token}
-      AND ResetTokenExpiration > GETDATE()
-    `;
+    const result = await pool.request()
+      .input("token", sql.VarChar, token)
+      .query(`
+        SELECT * FROM dbo.Users
+        WHERE ResetToken = @token
+        AND ResetTokenExpiration > GETDATE()
+      `);
 
     if (result.recordset.length === 0) {
       return res.json({
@@ -190,13 +220,17 @@ app.post("/api/reset-password", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await sql.query`
-      UPDATE dbo.Users
-      SET Password = ${hashedPassword},
+    await pool.request()
+      .input("password", sql.VarChar, hashedPassword)
+      .input("token", sql.VarChar, token)
+      .query(`
+        UPDATE dbo.Users
+        SET 
+          Password = @password,
           ResetToken = NULL,
           ResetTokenExpiration = NULL
-      WHERE ResetToken = ${token}
-    `;
+        WHERE ResetToken = @token
+      `);
 
     res.json({
       success: true,
@@ -204,67 +238,64 @@ app.post("/api/reset-password", async (req, res) => {
     });
 
   } catch (error) {
-    console.log(error);
+    console.log("RESET ERROR:", error);
     res.status(500).json({ error: "Error del servidor" });
   }
-
 });
 
 app.put("/api/update-user", async (req, res) => {
-
   const { id, nombre, apellido, password } = req.body;
 
   try {
+    const pool = await getPool();
 
-    let hashedPassword = null;
+    if (password && password !== "") {
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-    if(password && password !== ""){
-      hashedPassword = await bcrypt.hash(password, 10);
-    }
-
-    if(hashedPassword){
-
-      await sql.query`
-        UPDATE dbo.Users
-        SET Nombre = ${nombre},
-            Apellido = ${apellido},
-            Password = ${hashedPassword}
-        WHERE Id = ${id}
-      `;
+      await pool.request()
+        .input("id", sql.Int, id)
+        .input("nombre", sql.VarChar, nombre)
+        .input("apellido", sql.VarChar, apellido)
+        .input("password", sql.VarChar, hashedPassword)
+        .query(`
+          UPDATE dbo.Users
+          SET 
+            Nombre = @nombre,
+            Apellido = @apellido,
+            Password = @password
+          WHERE Id = @id
+        `);
 
     } else {
-
-      await sql.query`
-        UPDATE dbo.Users
-        SET Nombre = ${nombre},
-            Apellido = ${apellido}
-        WHERE Id = ${id}
-      `;
-
+      await pool.request()
+        .input("id", sql.Int, id)
+        .input("nombre", sql.VarChar, nombre)
+        .input("apellido", sql.VarChar, apellido)
+        .query(`
+          UPDATE dbo.Users
+          SET 
+            Nombre = @nombre,
+            Apellido = @apellido
+          WHERE Id = @id
+        `);
     }
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
-  } catch(error){
-
-    console.log(error);
-
+  } catch (error) {
+    console.log("UPDATE USER ERROR:", error);
     res.status(500).json({
-      success:false,
-      message:"Error actualizando perfil"
+      success: false,
+      message: "Error actualizando perfil"
     });
-
   }
-
 });
 
 app.get('/admin/resumen', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const result = await sql.query(`
+    const result = await pool.request().query(`
       SELECT 
         (SELECT COUNT(*) FROM dbo.Users) AS usuarios,
         (SELECT COUNT(*) FROM dbo.Units WHERE Estado = 1) AS unidades_activas,
@@ -274,18 +305,16 @@ app.get('/admin/resumen', async (req, res) => {
     res.json(result.recordset[0]);
 
   } catch (error) {
-
-    console.log(error);
+    console.log("RESUMEN ERROR:", error);
     res.status(500).json({ error: "Error en servidor" });
-
   }
-
 });
 
 app.get('/admin/usuarios', async (req, res) => {
-
   try {
-    const result = await sql.query(`
+    const pool = await getPool();
+
+    const result = await pool.request().query(`
       SELECT 
         Id AS id,
         Nombre AS nombre,
@@ -293,35 +322,34 @@ app.get('/admin/usuarios', async (req, res) => {
         Correo_Institucional AS correo_institucional,
         Estado AS estado,
         Id_Rol AS id_rol
-        FROM dbo.Users
+      FROM dbo.Users
     `);
 
     res.json(result.recordset);
 
   } catch (error) {
-
-    console.log(error);
+    console.log("USUARIOS ERROR:", error);
     res.status(500).json({ error: "Error al obtener usuarios" });
-
   }
-
 });
 
 app.put("/admin/usuarios/:id", async (req, res) => {
   try {
-    const { estado, id_rol } = req.body;
-    const { id } = req.params;
+    const pool = await getPool();
 
-    await sql.request()
+    const { estado, id_rol } = req.body;
+    const id = parseInt(req.params.id);
+
+    await pool.request()
       .input("id", sql.Int, id)
       .input("estado", sql.Int, estado)
       .input("id_rol", sql.Int, id_rol)
       .query(`
         UPDATE dbo.Users
         SET 
-          estado = @estado,
-          id_rol = @id_rol
-        WHERE id = @id
+          Estado = @estado,
+          Id_Rol = @id_rol
+        WHERE Id = @id
       `);
 
     res.json({
@@ -330,14 +358,16 @@ app.put("/admin/usuarios/:id", async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json(error);
+    console.log("UPDATE USER ADMIN ERROR:", error);
+    res.status(500).json({ error: "Error actualizando usuario" });
   }
 });
 
 app.get('/admin/unidades', async (req, res) => {
   try {
-    const result = await sql.query(`
+    const pool = await getPool();
+
+    const result = await pool.request().query(`
       SELECT 
         Id_Unidad,
         Numero_Unidad,
@@ -351,16 +381,17 @@ app.get('/admin/unidades', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log(error);
+    console.log("UNIDADES ERROR:", error);
     res.status(500).json({ error: "Error al obtener unidades" });
   }
 });
 
 app.post('/admin/unidades', async (req, res) => {
   try {
+    const pool = await getPool();
     const { numero_unidad, placa, capacidad_asientos, id_chofer } = req.body;
 
-    const result = await sql.request()
+    const result = await pool.request()
       .input("numeroUnidad", sql.Int, numero_unidad)
       .input("placa", sql.VarChar, placa)
       .input("capacidad", sql.Int, capacidad_asientos)
@@ -383,38 +414,35 @@ app.post('/admin/unidades', async (req, res) => {
 
     const unidadId = result.recordset[0].Id_Unidad;
 
+    // ⚠️ IMPORTANTE: usar pool en loop
     for (let i = 1; i <= capacidad_asientos; i++) {
-      await sql.request()
+      await pool.request()
         .input("numero", sql.Int, i)
         .input("unidadId", sql.Int, unidadId)
         .query(`
-          INSERT INTO Asientos (
-            Numero_Asiento,
-            Unidad_Id
-          )
-          VALUES (
-            @numero,
-            @unidadId
-          )
+          INSERT INTO Asientos (Numero_Asiento, Id_Unidad)
+          VALUES (@numero, @unidadId)
         `);
     }
 
-    res.json({ message: "Unidad creada con chofer y asientos" });
+    res.json({ success: true, message: "Unidad creada con asientos" });
 
   } catch (error) {
-    console.log(error);
+    console.log("CREATE UNIDAD ERROR:", error);
     res.status(500).json({ error: "Error al crear unidad" });
   }
 });
 
 app.put('/admin/unidades/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const pool = await getPool();
 
+    const id = parseInt(req.params.id);
     const { numero_unidad, placa, capacidad_asientos, estado, id_chofer } = req.body;
 
+    // Validar chofer
     if (id_chofer) {
-      const existe = await sql.request()
+      const existe = await pool.request()
         .input("id_chofer", sql.Int, id_chofer)
         .input("id_unidad", sql.Int, id)
         .query(`
@@ -431,7 +459,7 @@ app.put('/admin/unidades/:id', async (req, res) => {
       }
     }
 
-    await sql.request()
+    await pool.request()
       .input("id", sql.Int, id)
       .input("numero_unidad", sql.Int, numero_unidad ?? null)
       .input("placa", sql.VarChar, placa ?? null)
@@ -449,18 +477,19 @@ app.put('/admin/unidades/:id', async (req, res) => {
         WHERE Id_Unidad = @id
       `);
 
-    res.json({ mensaje: "Unidad actualizada" });
+    res.json({ success: true });
 
   } catch (error) {
-    console.log(error);
+    console.log("UPDATE UNIDAD ERROR:", error);
     res.status(500).json({ error: "Error al actualizar unidad" });
   }
 });
 
 app.get('/admin/rutas', async (req, res) => {
   try {
+    const pool = await getPool();
 
-    const result = await sql.query(`
+    const result = await pool.request().query(`
       SELECT 
         r.Id_Ruta,
         r.Nombre_Ruta,
@@ -484,20 +513,16 @@ app.get('/admin/rutas', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al obtener rutas"
-    });
-
+    console.log("RUTAS ERROR:", error);
+    res.status(500).json({ error: "Error al obtener rutas" });
   }
 });
 
 app.get('/admin/unidades-disponibles', async (req, res) => {
-
   try {
-    const result = await sql.query(`
+    const pool = await getPool();
+
+    const result = await pool.request().query(`
       SELECT 
         Id_Unidad,
         Numero_Unidad
@@ -513,23 +538,16 @@ app.get('/admin/unidades-disponibles', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al obtener unidades disponibles"
-    });
-
+    console.log("UNIDADES DISP ERROR:", error);
+    res.status(500).json({ error: "Error al obtener unidades disponibles" });
   }
-
 });
 
 app.put('/admin/rutas/:id', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const { id } = req.params;
-
+    const id = parseInt(req.params.id);
     const {
       Nombre_Ruta,
       Descripcion,
@@ -538,51 +556,35 @@ app.put('/admin/rutas/:id', async (req, res) => {
       Estado
     } = req.body;
 
-    await sql.request()
-
+    await pool.request()
       .input("id", sql.Int, id)
       .input("Nombre_Ruta", sql.VarChar, Nombre_Ruta)
       .input("Descripcion", sql.VarChar, Descripcion)
       .input("Origen_Nombre", sql.VarChar, Origen_Nombre)
       .input("Destino_Nombre", sql.VarChar, Destino_Nombre)
-
       .input("Estado", sql.Int, Estado ? 1 : 0)
-
       .query(`
-
         UPDATE dbo.Rutas
-
         SET
-
           Nombre_Ruta = @Nombre_Ruta,
           Descripcion = @Descripcion,
           Origen_Nombre = @Origen_Nombre,
           Destino_Nombre = @Destino_Nombre,
           Estado = @Estado
-
         WHERE Id_Ruta = @id
-
       `);
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al actualizar ruta"
-    });
-
+    console.log("UPDATE RUTA ERROR:", error);
+    res.status(500).json({ error: "Error al actualizar ruta" });
   }
-
 });
 
 app.post('/admin/rutas', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
     const {
       nombre_ruta,
@@ -596,7 +598,7 @@ app.post('/admin/rutas', async (req, res) => {
       unidad_id
     } = req.body;
 
-    await sql.request()
+    await pool.request()
       .input("nombre_ruta", sql.VarChar, nombre_ruta)
       .input("descripcion", sql.VarChar, descripcion)
       .input("origen_nombre", sql.VarChar, origen_nombre)
@@ -635,30 +637,22 @@ app.post('/admin/rutas', async (req, res) => {
         )
       `);
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al crear ruta"
-    });
-
+    console.log("CREATE RUTA ERROR:", error);
+    res.status(500).json({ error: "Error al crear ruta" });
   }
-
 });
 
 app.put('/admin/rutas/estado/:id', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const { id } = req.params;
+    const id = parseInt(req.params.id);
     const { estado } = req.body;
 
-    await sql.request()
+    await pool.request()
       .input("id", sql.Int, id)
       .input("estado", sql.Int, estado)
       .query(`
@@ -667,104 +661,82 @@ app.put('/admin/rutas/estado/:id', async (req, res) => {
         WHERE Id_Ruta = @id
       `);
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al actualizar estado"
-    });
-
+    console.log("ESTADO RUTA ERROR:", error);
+    res.status(500).json({ error: "Error al actualizar estado" });
   }
-
 });
 
 app.delete('/admin/rutas/:id', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const { id } = req.params;
+    const id = parseInt(req.params.id);
 
-    await sql.request()
+    await pool.request()
       .input("id", sql.Int, id)
       .query(`
         DELETE FROM dbo.Rutas
         WHERE Id_Ruta = @id
       `);
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al eliminar ruta"
-    });
-
+    console.log("DELETE RUTA ERROR:", error);
+    res.status(500).json({ error: "Error al eliminar ruta" });
   }
-
 });
 
 app.get('/usuario/rutas-activas', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const result = await sql.query(`
-
+    const result = await pool.request().query(`
       SELECT
         r.Id_Ruta,
         r.Nombre_Ruta,
         r.Origen_Nombre,
         r.Destino_Nombre,
         u.Numero_Unidad
-
       FROM dbo.Rutas r
-
       LEFT JOIN dbo.Units u
         ON r.Unidad_Id = u.Id_Unidad
-
       WHERE r.Estado = 1
-
       ORDER BY r.Nombre_Ruta
-
     `);
 
     res.json(result.recordset);
 
   } catch (error) {
-
-    console.log(error);
-
-    res.status(500).json({
-      error: "Error al obtener rutas activas"
-    });
-
+    console.log("RUTAS ACTIVAS ERROR:", error);
+    res.status(500).json({ error: "Error al obtener rutas activas" });
   }
-
 });
 
 app.get('/usuario/asientos/:rutaId', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const rutaId = req.params.rutaId;
+    const rutaId = parseInt(req.params.rutaId);
 
-    const unidadResult = await sql.request()
+    const unidadResult = await pool.request()
       .input("RutaId", sql.Int, rutaId)
       .query(`
         SELECT Unidad_Id
         FROM Rutas
         WHERE Id_Ruta = @RutaId
       `);
+
+    if (unidadResult.recordset.length === 0) {
+      return res.status(404).json({ error: "Ruta no encontrada" });
+    }
+
     const unidadId = unidadResult.recordset[0].Unidad_Id;
-    const asientosResult = await sql.request()
+
+    const asientosResult = await pool.request()
       .input("UnidadId", sql.Int, unidadId)
       .query(`
         SELECT 
@@ -779,22 +751,19 @@ app.get('/usuario/asientos/:rutaId', async (req, res) => {
     res.json(asientosResult.recordset);
 
   } catch (error) {
-
-    console.log(error);
-    res.status(500).send("Error");
-
+    console.log("ASIENTOS ERROR:", error);
+    res.status(500).json({ error: "Error al obtener asientos" });
   }
-
 });
 
 app.put('/usuario/reservar-asiento/:id', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const idAsiento = req.params.id;
-    const rutaId = req.body.rutaId;
+    const idAsiento = parseInt(req.params.id);
+    const { rutaId } = req.body;
 
-    const result = await sql.request()
+    const result = await pool.request()
       .input("Id", sql.Int, idAsiento)
       .input("RutaId", sql.Int, rutaId)
       .query(`
@@ -809,27 +778,24 @@ app.put('/usuario/reservar-asiento/:id', async (req, res) => {
       `);
 
     if (result.rowsAffected[0] === 0) {
-      return res.status(400).send("No se pudo reservar el asiento");
+      return res.status(400).json({ error: "No se pudo reservar el asiento" });
     }
 
-    res.send("Asiento reservado");
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-    res.status(500).send("Error al reservar asiento");
-
+    console.log("RESERVAR ERROR:", error);
+    res.status(500).json({ error: "Error al reservar asiento" });
   }
-
 });
 
 app.put('/usuario/cancelar-reserva/:id', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const idAsiento = req.params.id;
+    const idAsiento = parseInt(req.params.id);
 
-    const result = await sql.request()
+    await pool.request()
       .input("Id", sql.Int, idAsiento)
       .query(`
         UPDATE Asientos
@@ -838,28 +804,22 @@ app.put('/usuario/cancelar-reserva/:id', async (req, res) => {
         AND Estado = 1
       `);
 
-    res.send("Reserva cancelada");
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-    res.status(500).send("Error");
-
+    console.log("CANCELAR ERROR:", error);
+    res.status(500).json({ error: "Error al cancelar reserva" });
   }
-
 });
 
 app.put('/usuario/ocupar-asiento/:id', async (req, res) => {
-
   try {
+    const pool = await getPool();
 
-    const idAsiento = req.params.id;
-    const rutaId = req.body.rutaId;
+    const idAsiento = parseInt(req.params.id);
+    const { rutaId } = req.body;
 
-    console.log("OCUPAR asiento:", idAsiento);
-    console.log("Ruta:", rutaId);
-
-    const result = await sql.request()
+    const result = await pool.request()
       .input("Id", sql.Int, idAsiento)
       .input("RutaId", sql.Int, rutaId)
       .query(`
@@ -873,26 +833,21 @@ app.put('/usuario/ocupar-asiento/:id', async (req, res) => {
         AND a.Estado = 1
       `);
 
-    console.log("Filas afectadas:", result.rowsAffected);
-
-    res.send("Asiento ocupado");
+    res.json({ success: true });
 
   } catch (error) {
-
-    console.log(error);
-    res.status(500).send("Error");
-
+    console.log("OCUPAR ERROR:", error);
+    res.status(500).json({ error: "Error al ocupar asiento" });
   }
-
 });
 
 app.get('/usuario/estado-asiento/:id', async (req, res) => {
-  console.log("RESERVAR asiento:", req.params.id);
   try {
+    const pool = await getPool();
 
-    const idAsiento = req.params.id;
+    const idAsiento = parseInt(req.params.id);
 
-    const result = await sql.request()
+    const result = await pool.request()
       .input("Id", sql.Int, idAsiento)
       .query(`
         SELECT Estado
@@ -903,21 +858,20 @@ app.get('/usuario/estado-asiento/:id', async (req, res) => {
     res.json(result.recordset[0]);
 
   } catch (error) {
-
-    console.log(error);
-    res.status(500).send("Error");
-
+    console.log("ESTADO ASIENTO ERROR:", error);
+    res.status(500).json({ error: "Error" });
   }
-
 });
-
 
 app.put("/chofer/asientos/:id", async (req, res) => {
   try {
+    const pool = await getPool();
+
     const { estado, id_chofer } = req.body;
     const id_asiento = parseInt(req.params.id);
 
-    const validacion = await sql.request()
+    // Validar que el asiento pertenece al chofer
+    const validacion = await pool.request()
       .input("id_chofer", sql.Int, id_chofer)
       .input("id_asiento", sql.Int, id_asiento)
       .query(`
@@ -936,7 +890,8 @@ app.put("/chofer/asientos/:id", async (req, res) => {
       });
     }
 
-    await sql.request()
+    // Actualizar estado
+    await pool.request()
       .input("estado", sql.Int, estado)
       .input("id_asiento", sql.Int, id_asiento)
       .query(`
@@ -948,13 +903,16 @@ app.put("/chofer/asientos/:id", async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    res.status(500).json(error);
+    console.log("CHOFER ASIENTO ERROR:", error);
+    res.status(500).json({ error: "Error en servidor" });
   }
 });
 
 app.get('/admin/choferes', async (req, res) => {
   try {
-    const result = await sql.query(`
+    const pool = await getPool();
+
+    const result = await pool.request().query(`
       SELECT Id, Nombre, Apellido
       FROM dbo.Users
       WHERE Id_Rol = 3
@@ -963,16 +921,18 @@ app.get('/admin/choferes', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log(error);
+    console.log("CHOFERES ERROR:", error);
     res.status(500).json({ error: "Error al obtener choferes" });
   }
 });
 
 app.get('/chofer/unidad/:idChofer', async (req, res) => {
-  const { idChofer } = req.params;
-
   try {
-    const result = await sql.request()
+    const pool = await getPool();
+
+    const idChofer = parseInt(req.params.idChofer);
+
+    const result = await pool.request()
       .input('idChofer', sql.Int, idChofer)
       .query(`
         SELECT Id_Unidad
@@ -981,18 +941,19 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
       `);
 
     if (result.recordset.length > 0) {
-      res.json({
+      return res.json({
         success: true,
         Id_Unidad: result.recordset[0].Id_Unidad
       });
-    } else {
-      res.json({
-        success: false,
-        message: "Chofer sin unidad asignada"
-      });
     }
 
+    res.json({
+      success: false,
+      message: "Chofer sin unidad asignada"
+    });
+
   } catch (error) {
+    console.log("UNIDAD CHOFER ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Error en servidor"
@@ -1001,20 +962,19 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
 });
 
 app.put('/chofer/asientos/liberar', async (req, res) => {
-  const { id_unidad } = req.body;
-
-  console.log("📥 REQUEST RECIBIDO");
-  console.log("ID_UNIDAD:", id_unidad);
-
-  if (!id_unidad) {
-    return res.status(400).json({
-      success: false,
-      message: "id_unidad es requerido"
-    });
-  }
-
   try {
-    const result = await sql.request()
+    const pool = await getPool();
+
+    const { id_unidad } = req.body;
+
+    if (!id_unidad) {
+      return res.status(400).json({
+        success: false,
+        message: "id_unidad es requerido"
+      });
+    }
+
+    const result = await pool.request()
       .input('id_unidad', sql.Int, id_unidad)
       .query(`
         UPDATE Asientos
@@ -1022,8 +982,6 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
         WHERE Id_Unidad = @id_unidad
         AND Estado IN (1, 2)
       `);
-
-    console.log("FILAS AFECTADAS:", result.rowsAffected);
 
     if (result.rowsAffected[0] === 0) {
       return res.json({
@@ -1038,10 +996,10 @@ app.put('/chofer/asientos/liberar', async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR:", error);
+    console.log("LIBERAR ASIENTOS ERROR:", error);
     res.status(500).json({
       success: false,
-      message: 'Error liberando asientos'
+      message: "Error liberando asientos"
     });
   }
 });
