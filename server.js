@@ -939,13 +939,15 @@ app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
 
 app.put("/chofer/asientos/:id", async (req, res) => {
   try {
-     console.log("🚨 ENTRE A ASIENTO POR ID");
-  console.log("PARAM ID:", req.params.id);
-  console.log("BODY:", req.body);
+  
     const pool = await getPool();
 
     const { estado, id_chofer, id_unidad } = req.body;
     const id_asiento = parseInt(req.params.id);
+
+    console.log("ID ASIENTO:", id_asiento);
+    console.log("ID CHOFER:", id_chofer);
+    console.log("ID UNIDAD:", id_unidad);
 
     const validacion = await pool.request()
       .input("id_chofer", sql.Int, id_chofer)
