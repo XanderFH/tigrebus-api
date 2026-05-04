@@ -768,7 +768,9 @@ app.put('/usuario/reservar-asiento/:id', async (req, res) => {
       .input("RutaId", sql.Int, rutaId)
       .query(`
         UPDATE a
-        SET a.Estado = 1
+        SET 
+          a.Estado = 1,
+          a.Fecha_Reserva = GETDATE()
         FROM Asientos a
         INNER JOIN Rutas r
           ON a.Id_Unidad = r.Unidad_Id
@@ -799,7 +801,9 @@ app.put('/usuario/cancelar-reserva/:id', async (req, res) => {
       .input("Id", sql.Int, idAsiento)
       .query(`
         UPDATE Asientos
-        SET Estado = 0
+        SET 
+          Estado = 0,
+          Fecha_Reserva = NULL
         WHERE Id_Asiento = @Id
         AND Estado = 1
       `);
@@ -824,7 +828,9 @@ app.put('/usuario/ocupar-asiento/:id', async (req, res) => {
       .input("RutaId", sql.Int, rutaId)
       .query(`
         UPDATE a
-        SET a.Estado = 2
+        SET 
+          a.Estado = 2,
+          a.Fecha_Reserva = NULL
         FROM Asientos a
         INNER JOIN Rutas r
           ON a.Id_Unidad = r.Unidad_Id
@@ -833,7 +839,13 @@ app.put('/usuario/ocupar-asiento/:id', async (req, res) => {
         AND a.Estado = 1
       `);
 
-    res.json({ success: true });
+    if (result.rowsAffected[0] === 0) {
+      return res.status(400).json({
+        error: "No se pudo ocupar el asiento"
+      });
+    }
+
+    res.json({ success: true });;
 
   } catch (error) {
     console.log("OCUPAR ERROR:", error);
@@ -1096,6 +1108,25 @@ app.get('/usuario/rutas', async (req, res) => {
   } catch (error) {
     console.log("BUSCAR RUTAS ERROR:", error);
     res.status(500).json({ error: "Error en servidor" });
+  }
+});
+
+app.put('/usuario/liberar-expirados', async (req, res) => {
+  try {
+    const pool = await getPool();
+
+    await pool.request().query(`
+      UPDATE Asientos
+      SET Estado = 0,
+          Fecha_Reserva = NULL
+      WHERE Estado = 1
+      AND DATEDIFF(MINUTE, Fecha_Reserva, GETDATE()) >= 5
+    `);
+
+    res.json({ success: true });
+
+  } catch (error) {
+    res.status(500).json({ error: "Error liberando asientos" });
   }
 });
 
