@@ -29,7 +29,6 @@ let pool;
 async function getPool() {
   if (!pool) {
     pool = await sql.connect(config);
-    console.log("Conectado a SQL Server");
   }
   return pool;
 }
@@ -101,7 +100,6 @@ app.post("/api/login", async (req, res) => {
     });
 
   } catch (error) {
-    console.log("LOGIN ERROR:", error);
     res.status(500).json({ error: "Error del servidor" });
   }
 });
@@ -145,7 +143,6 @@ app.post("/api/register", async (req, res) => {
     });
 
   } catch (error) {
-    console.log("REGISTER ERROR:", error);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
@@ -192,7 +189,6 @@ app.post("/api/forgot-password", async (req, res) => {
     });
 
   } catch (error) {
-    console.log("FORGOT ERROR:", error);
     res.status(500).json({ error: "Error del servidor" });
   }
 });
@@ -238,7 +234,6 @@ app.post("/api/reset-password", async (req, res) => {
     });
 
   } catch (error) {
-    console.log("RESET ERROR:", error);
     res.status(500).json({ error: "Error del servidor" });
   }
 });
@@ -283,7 +278,6 @@ app.put("/api/update-user", async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("UPDATE USER ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Error actualizando perfil"
@@ -305,7 +299,6 @@ app.get('/admin/resumen', async (req, res) => {
     res.json(result.recordset[0]);
 
   } catch (error) {
-    console.log("RESUMEN ERROR:", error);
     res.status(500).json({ error: "Error en servidor" });
   }
 });
@@ -328,7 +321,6 @@ app.get('/admin/usuarios', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("USUARIOS ERROR:", error);
     res.status(500).json({ error: "Error al obtener usuarios" });
   }
 });
@@ -358,7 +350,6 @@ app.put("/admin/usuarios/:id", async (req, res) => {
     });
 
   } catch (error) {
-    console.log("UPDATE USER ADMIN ERROR:", error);
     res.status(500).json({ error: "Error actualizando usuario" });
   }
 });
@@ -381,7 +372,6 @@ app.get('/admin/unidades', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("UNIDADES ERROR:", error);
     res.status(500).json({ error: "Error al obtener unidades" });
   }
 });
@@ -414,7 +404,6 @@ app.post('/admin/unidades', async (req, res) => {
 
     const unidadId = result.recordset[0].Id_Unidad;
 
-    // ⚠️ IMPORTANTE: usar pool en loop
     for (let i = 1; i <= capacidad_asientos; i++) {
       await pool.request()
         .input("numero", sql.Int, i)
@@ -428,7 +417,6 @@ app.post('/admin/unidades', async (req, res) => {
     res.json({ success: true, message: "Unidad creada con asientos" });
 
   } catch (error) {
-    console.log("CREATE UNIDAD ERROR:", error);
     res.status(500).json({ error: "Error al crear unidad" });
   }
 });
@@ -440,7 +428,6 @@ app.put('/admin/unidades/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const { numero_unidad, placa, capacidad_asientos, estado, id_chofer } = req.body;
 
-    // Validar chofer
     if (id_chofer) {
       const existe = await pool.request()
         .input("id_chofer", sql.Int, id_chofer)
@@ -480,7 +467,6 @@ app.put('/admin/unidades/:id', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("UPDATE UNIDAD ERROR:", error);
     res.status(500).json({ error: "Error al actualizar unidad" });
   }
 });
@@ -513,7 +499,6 @@ app.get('/admin/rutas', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("RUTAS ERROR:", error);
     res.status(500).json({ error: "Error al obtener rutas" });
   }
 });
@@ -538,7 +523,6 @@ app.get('/admin/unidades-disponibles', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("UNIDADES DISP ERROR:", error);
     res.status(500).json({ error: "Error al obtener unidades disponibles" });
   }
 });
@@ -577,7 +561,6 @@ app.put('/admin/rutas/:id', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("UPDATE RUTA ERROR:", error);
     res.status(500).json({ error: "Error al actualizar ruta" });
   }
 });
@@ -640,7 +623,6 @@ app.post('/admin/rutas', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("CREATE RUTA ERROR:", error);
     res.status(500).json({ error: "Error al crear ruta" });
   }
 });
@@ -664,7 +646,6 @@ app.put('/admin/rutas/estado/:id', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("ESTADO RUTA ERROR:", error);
     res.status(500).json({ error: "Error al actualizar estado" });
   }
 });
@@ -685,7 +666,6 @@ app.delete('/admin/rutas/:id', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("DELETE RUTA ERROR:", error);
     res.status(500).json({ error: "Error al eliminar ruta" });
   }
 });
@@ -711,7 +691,6 @@ app.get('/usuario/rutas-activas', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("RUTAS ACTIVAS ERROR:", error);
     res.status(500).json({ error: "Error al obtener rutas activas" });
   }
 });
@@ -751,7 +730,6 @@ app.get('/usuario/asientos/:rutaId', async (req, res) => {
     res.json(asientosResult.recordset);
 
   } catch (error) {
-    console.log("ASIENTOS ERROR:", error);
     res.status(500).json({ error: "Error al obtener asientos" });
   }
 });
@@ -786,7 +764,6 @@ app.put('/usuario/reservar-asiento/:id', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("RESERVAR ERROR:", error);
     res.status(500).json({ error: "Error al reservar asiento" });
   }
 });
@@ -811,7 +788,6 @@ app.put('/usuario/cancelar-reserva/:id', async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("CANCELAR ERROR:", error);
     res.status(500).json({ error: "Error al cancelar reserva" });
   }
 });
@@ -848,7 +824,6 @@ app.put('/usuario/ocupar-asiento/:id', async (req, res) => {
     res.json({ success: true });;
 
   } catch (error) {
-    console.log("OCUPAR ERROR:", error);
     res.status(500).json({ error: "Error al ocupar asiento" });
   }
 });
@@ -870,21 +845,15 @@ app.get('/usuario/estado-asiento/:id', async (req, res) => {
     res.json(result.recordset[0]);
 
   } catch (error) {
-    console.log("ESTADO ASIENTO ERROR:", error);
     res.status(500).json({ error: "Error" });
   }
 });
 
 app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
   try {
-    console.log("🔥 ENTRE A LIBERAR ASIENTOS");
-    console.log("BODY:", req.body);
     const pool = await getPool();
 
     const { id_unidad, id_chofer } = req.body;
-
-    console.log("Unidad:", id_unidad);
-    console.log("Chofer:", id_chofer);
 
     const validacion = await pool.request()
       .input("id_unidad", sql.Int, id_unidad)
@@ -914,8 +883,6 @@ app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
         AND Estado IN (1, 2)
       `);
 
-    console.log("FILAS AFECTADAS:", result.rowsAffected);
-
     if (result.rowsAffected[0] === 0) {
       return res.json({
         success: false,
@@ -929,7 +896,6 @@ app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Error en servidor"
@@ -944,10 +910,6 @@ app.put("/chofer/asientos/:id", async (req, res) => {
 
     const { estado, id_chofer, id_unidad } = req.body;
     const id_asiento = parseInt(req.params.id);
-
-    console.log("ID ASIENTO:", id_asiento);
-    console.log("ID CHOFER:", id_chofer);
-    console.log("ID UNIDAD:", id_unidad);
 
     const validacion = await pool.request()
       .input("id_chofer", sql.Int, id_chofer)
@@ -982,7 +944,6 @@ app.put("/chofer/asientos/:id", async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log("CHOFER ASIENTO ERROR:", error);
     res.status(500).json({ error: "Error en servidor" });
   }
 });
@@ -1000,7 +961,6 @@ app.get('/admin/choferes', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("CHOFERES ERROR:", error);
     res.status(500).json({ error: "Error al obtener choferes" });
   }
 });
@@ -1032,7 +992,6 @@ app.get('/chofer/unidad/:idChofer', async (req, res) => {
     });
 
   } catch (error) {
-    console.log("UNIDAD CHOFER ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Error en servidor"
@@ -1060,7 +1019,6 @@ app.post("/chofer/ubicacion", async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.log(error);
     res.status(500).json({ error: "Error actualizando ubicación" });
   }
 });
@@ -1110,7 +1068,6 @@ app.get('/usuario/rutas', async (req, res) => {
     res.json(result.recordset);
 
   } catch (error) {
-    console.log("BUSCAR RUTAS ERROR:", error);
     res.status(500).json({ error: "Error en servidor" });
   }
 });
