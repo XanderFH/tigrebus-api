@@ -907,7 +907,9 @@ app.put('/chofer/asientos/liberar-asientos', async (req, res) => {
       .input("id_unidad", sql.Int, id_unidad)
       .query(`
         UPDATE Asientos
-        SET Estado = 0
+        SET 
+          Estado = 0,
+          Fecha_Reserva = NULL
         WHERE Id_Unidad = @id_unidad
         AND Estado IN (1, 2)
       `);
